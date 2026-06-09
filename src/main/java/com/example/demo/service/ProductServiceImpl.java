@@ -55,7 +55,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         // 6. Lấy danh sách sản phẩm tương tự (Gọi qua Store Procedure đã cấu hình) (GIỮ NGUYÊN)
-        List<Product> listSPTuongTu = productRepository.findRelatedProducts(productId, 8);
+        List<Product> listSPTuongTu = productRepository.findRelatedProducts(productId, 10);
 
         // Đóng gói toàn bộ vào DTO để trả về cho Frontend React (GIỮ NGUYÊN)
         return new ProductDetailResponse(product, images, isCoSize, listMauSac, listSizeTheoMau, listSPTuongTu);

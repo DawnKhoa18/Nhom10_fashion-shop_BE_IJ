@@ -2,6 +2,7 @@ package com.example.demo.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty; // Thêm import này
 
 @Entity
 @Table(name = "ChiTietGioHang")
@@ -16,12 +17,14 @@ public class CartItem {
     private Long cartId;
 
     @Column(name = "MaSP", nullable = false)
+    @JsonProperty("maSP") // Ánh xạ từ "maSP" của React
     private Long productId;
 
     @Column(name = "MaBienThe")
     private Long variantId;
 
     @Column(name = "SoLuong")
+    @JsonProperty("soLuong") // Ánh xạ từ "soLuong" của React
     private Integer quantity = 1;
 
     @Column(name = "NgayThem", updatable = false)
