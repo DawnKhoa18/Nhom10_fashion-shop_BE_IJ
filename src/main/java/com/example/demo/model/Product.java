@@ -46,7 +46,7 @@ public class Product {
     private LocalDateTime updatedAt;
 
     // CẬP NHẬT: Thêm insertable và updatable = false để tránh xung đột với @JoinColumn của category
-    @Column(name = "MaDanhMuc", insertable = false, updatable = false)
+    @Column(name = "MaDanhMuc")
     private Integer categoryId;
 
     // CHỈ THÊM: Thiết lập mối quan hệ ManyToOne liên kết sang thực thể Category dựa trên khóa ngoại MaDanhMuc
