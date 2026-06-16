@@ -10,6 +10,7 @@ import java.util.List;
 @Repository
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, Long> {
     List<ProductVariant> findByProductId(Long productId);
+    void deleteByProductId(Long productId);
 
     // Lấy danh sách màu sắc duy nhất (Dùng tên biến color và productId)
     @Query("SELECT DISTINCT pv.color FROM ProductVariant pv WHERE pv.productId = :productId")
