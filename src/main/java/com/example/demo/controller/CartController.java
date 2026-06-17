@@ -50,4 +50,29 @@ public class CartController {
         int total = items.stream().mapToInt(CartItem::getQuantity).sum();
         return ResponseEntity.ok(total);
     }
+    @PostMapping("/update-qty")
+    public ResponseEntity<?> updateCartQty(@RequestBody CartItem item) {
+        CartItem oldItem = cartItemRepository.findById(item.getId()).orElse(null);
+
+        if (oldItem == null) {
+            return ResponseEntity.badRequest().body("Không tìm thấy sản phẩm trong giỏ");
+        }
+
+        oldItem.setQuantity(item.getQuantity());
+        cartItemRepository.save(oldItem);
+
+        return ResponseEntity.ok(oldItem);
+    }
+
+    @PostMapping("/remove")
+    public ResponseEntity<?> removeFromCart(@RequestBody CartItem item) {
+        CartItem oldItem = cartItemRepository.findById(item.getId()).orElse(null);
+
+        if (oldItem == null) {
+            return ResponseEntity.badRequest().body("Không tìm thấy sản phẩm trong giỏ");
+        }
+
+        cartItemRepository.delete(oldItem);
+        return ResponseEntity.ok("Đã xóa sản phẩm khỏi giỏ hàng");
+    }
 }
