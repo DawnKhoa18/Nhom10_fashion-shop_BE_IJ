@@ -44,7 +44,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findAllBestSellers();
 
     // Thay đổi dòng Query thành cấu trúc {call ...}
-    @Query(value = "{call sp_LayGoiY_SanPhamTuongTu(:productId, :take)}", nativeQuery = true)
+    @Query(value = "SELECT p.* FROM SanPham p " +
+            "WHERE p.MaDanhMuc = (SELECT sp.MaDanhMuc FROM SanPham sp WHERE sp.MaSP = :productId) " +
+            "AND p.MaSP <> :productId " +
+            "AND p.HienThi = 1 " +
+            "ORDER BY p.NgayTao DESC " +
+            "LIMIT :take", nativeQuery = true)
     List<Product> findRelatedProducts(@Param("productId") Long productId, @Param("take") int take);
 
     // ================= CHỈ SỬA ĐÚNG DÒNG NÀY: DÒ THEO BIẾN name TRONG ENTITY PRODUCT =================
