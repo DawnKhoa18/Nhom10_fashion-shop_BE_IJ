@@ -8,7 +8,12 @@ import com.example.demo.repository.CustomerRepository;
 import com.example.demo.repository.EmployeeRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
+import java.time.LocalDateTime;
+
 import jakarta.validation.Valid;
 import org.springframework.validation.BindingResult;
 
@@ -29,7 +34,6 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             BindingResult bindingResult) {
 
-        // Trả về lỗi validation đầu tiên nếu có
         if (bindingResult.hasErrors()) {
             String errorMsg = bindingResult.getAllErrors()
                     .get(0).getDefaultMessage();
@@ -53,7 +57,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(
+    public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequest request,
             BindingResult bindingResult) {
 
@@ -64,20 +68,49 @@ public class AuthController {
         }
 
         Optional<Customer> customerOpt = repository.findByEmail(request.getEmail());
-        if (customerOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email không tồn tại");
+        Optional<Employee> employeeOpt = employeeRepository.findByEmail(request.getEmail());
+
+        if (customerOpt.isPresent()
+                && customerOpt.get().getPassword().equals(request.getPassword())) {
+            Customer customer = customerOpt.get();
+            customer.setLastLogin(LocalDateTime.now());
+            repository.save(customer);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Đăng nhập thành công");
+            response.put("accountType", "CUSTOMER");
+            response.put("role", "CUSTOMER");
+            response.put("customerId", customer.getId());
+            response.put("fullName", customer.getFullName());
+            response.put("email", customer.getEmail());
+            return ResponseEntity.ok(response);
         }
 
-        Customer customer = customerOpt.get();
-        if (!customer.getPassword().equals(request.getPassword())) {
+        if (employeeOpt.isPresent()
+                && employeeOpt.get().getPassword().equals(request.getPassword())) {
+            Employee employee = employeeOpt.get();
+            employee.setLastLogin(LocalDateTime.now());
+            employeeRepository.save(employee);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Đăng nhập thành công");
+            response.put("accountType", "EMPLOYEE");
+            response.put("role", employee.getRole());
+            response.put("employeeId", employee.getId());
+            response.put("fullName", employee.getFullName());
+            response.put("email", employee.getEmail());
+            return ResponseEntity.ok(response);
+        }
+
+        if (customerOpt.isPresent() || employeeOpt.isPresent()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Sai mật khẩu");
         }
 
-        return ResponseEntity.ok("Đăng nhập thành công");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email không tồn tại");
     }
 
     @PostMapping("/admin/login")
-    public ResponseEntity<String> adminLogin(
+    public ResponseEntity<?> adminLogin(
             @Valid @RequestBody LoginRequest request,
             BindingResult bindingResult) {
 
@@ -88,15 +121,23 @@ public class AuthController {
         }
 
         Optional<Employee> employeeOpt = employeeRepository.findByEmail(request.getEmail());
+
         if (employeeOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email không tồn tại");
         }
 
         Employee employee = employeeOpt.get();
+
         if (!employee.getPassword().equals(request.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Sai mật khẩu");
         }
 
-        return ResponseEntity.ok("Đăng nhập thành công - " + employee.getRole());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Đăng nhập thành công");
+        response.put("employeeId", employee.getId());
+        response.put("email", employee.getEmail());
+        response.put("role", employee.getRole());
+
+        return ResponseEntity.ok(response);
     }
 }

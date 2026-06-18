@@ -56,25 +56,36 @@ public class CartController {
 
     @GetMapping("/customer/{customerId}")
     public Cart getCartByCustomer(@PathVariable Long customerId) {
-        return cartRepository.findByCustomerId(customerId).orElse(null);
+        return cartRepository.findByCustomerId(customerId)
+                .orElseGet(() -> {
+                    Cart cart = new Cart();
+                    cart.setCustomerId(customerId);
+                    return cartRepository.save(cart);
+                });
     }
 
     @PostMapping("/add")
     public ResponseEntity<?> addToCart(@RequestBody Map<String, Object> payload) {
-        Long cartId = getLong(payload, "cartId", DEFAULT_CART_ID);
+        Long cartId = getLong(payload, "cartId", null);
         Long productId = getLong(payload, "maSP", null);
         Integer quantity = Math.max(getInt(payload, "soLuong", 1), 1);
+
+        if (cartId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Thiếu cartId."));
+        }
 
         if (productId == null || productRepository.findById(productId).isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Khong tim thay san pham."));
         }
 
         ProductVariant variant = resolveVariant(productId, getString(payload, "mau"), getString(payload, "size"));
+
         Optional<CartItem> existing = variant != null
                 ? cartItemRepository.findFirstByCartIdAndProductIdAndVariantId(cartId, productId, variant.getId())
                 : cartItemRepository.findFirstByCartIdAndProductIdAndVariantIdIsNull(cartId, productId);
 
         CartItem item = existing.orElseGet(CartItem::new);
+
         if (item.getId() == null) {
             item.setCartId(cartId);
             item.setProductId(productId);
@@ -85,7 +96,11 @@ public class CartController {
         }
 
         cartItemRepository.save(item);
-        return ResponseEntity.ok(Map.of("success", true, "cartCount", getCartQuantity(cartId)));
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "cartCount", getCartQuantity(cartId)
+        ));
     }
 
     @GetMapping("/count/{cartId}")

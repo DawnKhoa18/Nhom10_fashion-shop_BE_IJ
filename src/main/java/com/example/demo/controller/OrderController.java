@@ -1,52 +1,55 @@
 package com.example.demo.controller;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
 import com.example.demo.model.Order;
 import com.example.demo.model.OrderDetail;
 import com.example.demo.model.Product;
 import com.example.demo.model.ProductVariant;
-import com.example.demo.repository.OrderRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.*;
-
+import com.example.demo.model.Cart;
 import com.example.demo.model.CartItem;
+
+import com.example.demo.repository.OrderRepository;
+import com.example.demo.repository.CartRepository;
 import com.example.demo.repository.CartItemRepository;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductVariantRepository;
+
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 
-    private static final Long DEFAULT_CART_ID = 1L;
-
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private CartRepository cartRepository;
+
     @Autowired
     private CartItemRepository cartItemRepository;
+
     @Autowired
     private OrderDetailRepository orderDetailRepository;
+
     @Autowired
     private ProductRepository productRepository;
+
     @Autowired
     private ProductVariantRepository productVariantRepository;
+
     @GetMapping
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -56,6 +59,94 @@ public class OrderController {
     public Order getOrderByNumber(@PathVariable String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber);
     }
+
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<?> getCustomerOrders(@PathVariable Long customerId) {
+        List<Map<String, Object>> result = orderRepository
+                .findByCustomerIdOrderByCreatedAtDesc(customerId)
+                .stream()
+                .map(this::toOrderSummary)
+                .toList();
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/customer/{customerId}/{orderId}")
+    public ResponseEntity<?> getCustomerOrderDetail(
+            @PathVariable Long customerId,
+            @PathVariable Long orderId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+
+        if (order == null || !customerId.equals(order.getCustomerId())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Map<String, Object> result = toOrderSummary(order);
+        List<Map<String, Object>> items = new ArrayList<>();
+
+        for (OrderDetail detail : orderDetailRepository.findByOrderId(orderId)) {
+            Product product = productRepository.findById(detail.getProductId()).orElse(null);
+            ProductVariant variant = detail.getVariantId() == null
+                    ? null
+                    : productVariantRepository.findById(detail.getVariantId()).orElse(null);
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", detail.getId());
+            item.put("productId", detail.getProductId());
+            item.put("productName", product == null ? "Sản phẩm không còn tồn tại" : product.getName());
+            item.put("thumbnail", product == null ? null : product.getThumbnail());
+            item.put("color", variant == null ? null : variant.getColor());
+            item.put("size", variant == null ? null : variant.getSize());
+            item.put("quantity", detail.getQuantity());
+            item.put("price", detail.getPrice());
+            item.put("subTotal", detail.getPrice().multiply(BigDecimal.valueOf(detail.getQuantity())));
+            items.add(item);
+        }
+
+        result.put("items", items);
+        return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/customer/{customerId}/{orderId}/cancel")
+    @Transactional
+    public ResponseEntity<?> cancelCustomerOrder(
+            @PathVariable Long customerId,
+            @PathVariable Long orderId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+
+        if (order == null || !customerId.equals(order.getCustomerId())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (!"Đang xử lý".equalsIgnoreCase(order.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Chỉ có thể hủy đơn hàng đang xử lý"
+            ));
+        }
+
+        order.setStatus("Đã hủy");
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Hủy đơn hàng thành công"
+        ));
+    }
+
+    private Map<String, Object> toOrderSummary(Order order) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", order.getId());
+        result.put("orderNumber", order.getOrderNumber());
+        result.put("status", order.getStatus());
+        result.put("totalAmount", order.getTotalAmount());
+        result.put("createdAt", order.getCreatedAt());
+        result.put("updatedAt", order.getUpdatedAt());
+        result.put("shippingAddress", order.getShippingAddress());
+        return result;
+    }
+
     @PostMapping("/place")
     @Transactional
     public ResponseEntity<?> placeOrder(@RequestBody Map<String, Object> orderData) {
@@ -74,18 +165,58 @@ public class OrderController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            List<CartItem> cartItems = cartItemRepository.findByCartId(DEFAULT_CART_ID);
+            if (orderData.get("customerId") == null) {
+                response.put("success", false);
+                response.put("message", "Thiếu customerId");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            Long customerId = Long.valueOf(orderData.get("customerId").toString());
+
+            Cart cart = cartRepository.findByCustomerId(customerId).orElse(null);
+
+            if (cart == null) {
+                response.put("success", false);
+                response.put("message", "Không tìm thấy giỏ hàng của khách hàng");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            Long cartId = cart.getId();
+
+            List<CartItem> cartItems = cartItemRepository.findByCartId(cartId);
+
             if (cartItems.isEmpty()) {
                 response.put("success", false);
-                response.put("message", "Gio hang dang trong");
+                response.put("message", "Giỏ hàng đang trống");
                 return ResponseEntity.badRequest().body(response);
+            }
+
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            for (CartItem item : cartItems) {
+                Product product = productRepository.findById(item.getProductId()).orElse(null);
+                ProductVariant variant = item.getVariantId() != null
+                        ? productVariantRepository.findById(item.getVariantId()).orElse(null)
+                        : null;
+
+                if (product == null) {
+                    continue;
+                }
+
+                BigDecimal price = variant != null && variant.getPrice() != null
+                        ? variant.getPrice()
+                        : product.getPrice();
+
+                int quantity = item.getQuantity() == null ? 1 : item.getQuantity();
+
+                totalAmount = totalAmount.add(price.multiply(BigDecimal.valueOf(quantity)));
             }
 
             Order order = new Order();
             order.setOrderNumber("DH" + System.currentTimeMillis());
-            order.setCustomerId(DEFAULT_CART_ID);
+            order.setCustomerId(customerId);
             order.setStatus("Đang xử lý");
-            order.setTotalAmount(new BigDecimal(orderData.get("tongTien").toString()));
+            order.setTotalAmount(totalAmount);
             order.setShippingAddress(diaChi);
             order.setCreatedAt(LocalDateTime.now());
             order.setUpdatedAt(LocalDateTime.now());
@@ -112,6 +243,7 @@ public class OrderController {
                 detail.setVariantId(variant != null ? variant.getId() : null);
                 detail.setQuantity(item.getQuantity());
                 detail.setPrice(price);
+
                 orderDetailRepository.save(detail);
             }
 
@@ -126,100 +258,6 @@ public class OrderController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Lỗi đặt hàng: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-    private String hmacSHA256(String data, String secretKey) throws Exception {
-        Mac hmacSHA256 = Mac.getInstance("HmacSHA256");
-        SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey.getBytes("UTF-8"), "HmacSHA256");
-        hmacSHA256.init(secretKeySpec);
-        byte[] hash = hmacSHA256.doFinal(data.getBytes("UTF-8"));
-
-        StringBuilder result = new StringBuilder();
-        for (byte b : hash) {
-            result.append(String.format("%02x", b));
-        }
-        return result.toString();
-    }
-    @PostMapping("/momo")
-    public ResponseEntity<?> createMomoPayment(@RequestBody Map<String, Object> orderData) {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            String tenKH = (String) orderData.get("tenKH");
-            String phone = (String) orderData.get("phone");
-            String diaChi = (String) orderData.get("diaChi");
-
-            if (tenKH == null || tenKH.trim().isEmpty()
-                    || phone == null || phone.trim().isEmpty()
-                    || diaChi == null || diaChi.trim().isEmpty()) {
-                response.put("success", false);
-                response.put("message", "Vui lòng nhập đầy đủ thông tin giao hàng");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            String partnerCode = "MOMO";
-            String accessKey = "F8B...";     // thay bằng accessKey sandbox của bạn
-            String secretKey = "0F9...";     // thay bằng secretKey sandbox của bạn
-            String endpoint = "https://test-payment.momo.vn/v2/gateway/api/create";
-
-            String orderId = "DH" + System.currentTimeMillis();
-            String requestId = orderId;
-            long amount = new BigDecimal(orderData.get("tongTien").toString()).longValue();
-
-            String orderInfo = "Thanh toan don hang " + orderId;
-            String redirectUrl = "http://localhost:3000/checkout/success";
-            String ipnUrl = "http://localhost:8080/api/orders/momo-ipn";
-            String requestType = "captureWallet";
-            String extraData = "";
-
-            String rawSignature =
-                    "accessKey=" + accessKey +
-                            "&amount=" + amount +
-                            "&extraData=" + extraData +
-                            "&ipnUrl=" + ipnUrl +
-                            "&orderId=" + orderId +
-                            "&orderInfo=" + orderInfo +
-                            "&partnerCode=" + partnerCode +
-                            "&redirectUrl=" + redirectUrl +
-                            "&requestId=" + requestId +
-                            "&requestType=" + requestType;
-
-            String signature = hmacSHA256(rawSignature, secretKey);
-
-            String jsonBody = "{"
-                    + "\"partnerCode\":\"" + partnerCode + "\","
-                    + "\"accessKey\":\"" + accessKey + "\","
-                    + "\"requestId\":\"" + requestId + "\","
-                    + "\"amount\":" + amount + ","
-                    + "\"orderId\":\"" + orderId + "\","
-                    + "\"orderInfo\":\"" + orderInfo + "\","
-                    + "\"redirectUrl\":\"" + redirectUrl + "\","
-                    + "\"ipnUrl\":\"" + ipnUrl + "\","
-                    + "\"extraData\":\"" + extraData + "\","
-                    + "\"requestType\":\"" + requestType + "\","
-                    + "\"signature\":\"" + signature + "\","
-                    + "\"lang\":\"vi\""
-                    + "}";
-
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            HttpResponse<String> momoResponse = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            response.put("success", true);
-            response.put("message", "Tạo thanh toán MoMo thành công");
-            response.put("momoResponse", momoResponse.body());
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Lỗi tạo thanh toán MoMo: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
