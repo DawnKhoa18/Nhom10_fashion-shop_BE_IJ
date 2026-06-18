@@ -6,6 +6,7 @@ import com.example.demo.model.Product;
 import com.example.demo.model.ProductVariant;
 import com.example.demo.model.Cart;
 import com.example.demo.model.CartItem;
+import com.example.demo.model.Customer;
 
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.CartRepository;
@@ -13,15 +14,21 @@ import com.example.demo.repository.CartItemRepository;
 import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductVariantRepository;
+import com.example.demo.repository.CustomerRepository;
 
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
@@ -49,6 +56,15 @@ public class OrderController {
 
     @Autowired
     private ProductVariantRepository productVariantRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
 
     @GetMapping
     public List<Order> getAllOrders() {
@@ -249,9 +265,12 @@ public class OrderController {
 
             cartItemRepository.deleteAll(cartItems);
 
+            boolean emailSent = sendOrderConfirmationEmail(savedOrder, customerId, tenKH, phone);
+
             response.put("success", true);
             response.put("message", "Đặt hàng thành công");
             response.put("orderNumber", savedOrder.getOrderNumber());
+            response.put("emailSent", emailSent);
 
             return ResponseEntity.ok(response);
 
@@ -260,5 +279,64 @@ public class OrderController {
             response.put("message", "Lỗi đặt hàng: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
+    }
+
+    private boolean sendOrderConfirmationEmail(Order order, Long customerId, String customerName, String phone) {
+        try {
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            if (customer == null || customer.getEmail() == null || customer.getEmail().isBlank()) {
+                return false;
+            }
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            if (mailUsername != null && !mailUsername.isBlank()) {
+                message.setFrom(mailUsername);
+            }
+            message.setTo(customer.getEmail());
+            message.setSubject("Fashion 4Men - Xác nhận đơn hàng " + order.getOrderNumber());
+            message.setText(buildOrderEmailBody(order, customerName, phone, customer.getEmail()));
+            mailSender.send(message);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Không gửi được email xác nhận đơn hàng: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String buildOrderEmailBody(Order order, String customerName, String phone, String email) {
+        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+        StringBuilder body = new StringBuilder();
+
+        body.append("Xin chào ").append(customerName).append(",\n\n");
+        body.append("Fashion 4Men đã nhận được đơn hàng của bạn.\n\n");
+        body.append("Mã đơn hàng: ").append(order.getOrderNumber()).append("\n");
+        body.append("Trạng thái: ").append(order.getStatus()).append("\n");
+        body.append("Ngày đặt: ").append(order.getCreatedAt()).append("\n");
+        body.append("Số điện thoại: ").append(phone).append("\n");
+        body.append("Email: ").append(email).append("\n");
+        body.append("Địa chỉ giao hàng: ").append(order.getShippingAddress()).append("\n");
+        body.append("Tổng tiền: ").append(currencyFormat.format(order.getTotalAmount())).append("\n\n");
+        body.append("Chi tiết sản phẩm:\n");
+
+        List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
+        for (OrderDetail detail : details) {
+            Product product = productRepository.findById(detail.getProductId()).orElse(null);
+            ProductVariant variant = detail.getVariantId() == null
+                    ? null
+                    : productVariantRepository.findById(detail.getVariantId()).orElse(null);
+
+            String productName = product == null ? "Sản phẩm không còn tồn tại" : product.getName();
+            BigDecimal lineTotal = detail.getPrice().multiply(BigDecimal.valueOf(detail.getQuantity()));
+
+            body.append("- ").append(productName);
+            if (variant != null) {
+                body.append(" (").append(variant.getColor()).append(" / ").append(variant.getSize()).append(")");
+            }
+            body.append(" x ").append(detail.getQuantity());
+            body.append(" - ").append(currencyFormat.format(lineTotal)).append("\n");
+        }
+
+        body.append("\nCảm ơn bạn đã mua sắm tại Fashion 4Men!");
+        return body.toString();
     }
 }

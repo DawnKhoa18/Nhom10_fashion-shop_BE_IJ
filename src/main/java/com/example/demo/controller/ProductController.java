@@ -70,6 +70,7 @@ public class ProductController {
     public ResponseEntity<ProductListResponse> getDanhSachSanPham(
             @RequestParam(value = "slug", defaultValue = "tat-ca") String slug,
             @RequestParam(value = "sort", defaultValue = "default") String sort,
+            @RequestParam(value = "keyword", defaultValue = "") String keyword,
             @RequestParam(value = "take", defaultValue = "30") int take) {
 
         List<Product> listAllMatched = new ArrayList<>();
@@ -116,6 +117,21 @@ public class ProductController {
         }
 
         // Logic Sắp xếp
+        String searchText = keyword != null ? keyword.trim().toLowerCase() : "";
+        boolean hasSearch = !searchText.isEmpty();
+        if (hasSearch) {
+            listAllMatched = listAllMatched.stream()
+                    .filter(product -> containsKeyword(product.getName(), searchText)
+                            || containsKeyword(product.getCategory() != null ? product.getCategory().getName() : null, searchText)
+                            || containsKeyword(product.getDescription(), searchText)
+                            || containsKeyword(product.getMaterial(), searchText)
+                            || containsKeyword(product.getForm(), searchText)
+                            || String.valueOf(product.getId()).contains(searchText))
+                    .collect(Collectors.toList());
+            titlePage = "Kết quả tìm kiếm: " + keyword.trim();
+            banner = "";
+        }
+
         if (listAllMatched != null && !listAllMatched.isEmpty()) {
             java.text.Collator collator = java.text.Collator.getInstance(new java.util.Locale("vi", "VN"));
             switch (sort) {
@@ -141,7 +157,13 @@ public class ProductController {
                     listAllMatched = productRepository.findAllBestSellers();
                     break;
                 default:
-                    listAllMatched.sort(Comparator.comparing(Product::getCreatedAt).reversed());
+                    if (hasSearch) {
+                        listAllMatched.sort(Comparator
+                                .comparingInt((Product product) -> searchScore(product, searchText))
+                                .thenComparing(Product::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+                    } else {
+                        listAllMatched.sort(Comparator.comparing(Product::getCreatedAt).reversed());
+                    }
                     break;
             }
         }
@@ -176,5 +198,22 @@ public class ProductController {
             @RequestParam("color") String color) {
         List<String> sizes = productService.getSizesByColor(productId, color);
         return ResponseEntity.ok(sizes);
+    }
+
+    private boolean containsKeyword(String value, String keyword) {
+        return value != null && value.toLowerCase().contains(keyword);
+    }
+
+    private int searchScore(Product product, String keyword) {
+        String name = product.getName();
+        String categoryName = product.getCategory() != null ? product.getCategory().getName() : null;
+
+        if (containsKeyword(name, keyword)) return 0;
+        if (containsKeyword(categoryName, keyword)) return 1;
+        if (containsKeyword(product.getMaterial(), keyword)) return 2;
+        if (containsKeyword(product.getForm(), keyword)) return 3;
+        if (containsKeyword(product.getDescription(), keyword)) return 4;
+        if (String.valueOf(product.getId()).contains(keyword)) return 5;
+        return 99;
     }
 }
