@@ -8,6 +8,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import com.example.demo.model.Order;
+import com.example.demo.model.OrderDetail;
+import com.example.demo.model.Product;
+import com.example.demo.model.ProductVariant;
 import com.example.demo.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -15,6 +18,10 @@ import org.springframework.web.bind.annotation.*;
 
 import com.example.demo.model.CartItem;
 import com.example.demo.repository.CartItemRepository;
+import com.example.demo.repository.OrderDetailRepository;
+import com.example.demo.repository.ProductRepository;
+import com.example.demo.repository.ProductVariantRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
@@ -28,10 +35,18 @@ import java.util.List;
 @RequestMapping("/api/orders")
 public class OrderController {
 
+    private static final Long DEFAULT_CART_ID = 1L;
+
     @Autowired
     private OrderRepository orderRepository;
     @Autowired
     private CartItemRepository cartItemRepository;
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
+    @Autowired
+    private ProductRepository productRepository;
+    @Autowired
+    private ProductVariantRepository productVariantRepository;
     @GetMapping
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -42,6 +57,7 @@ public class OrderController {
         return orderRepository.findByOrderNumber(orderNumber);
     }
     @PostMapping("/place")
+    @Transactional
     public ResponseEntity<?> placeOrder(@RequestBody Map<String, Object> orderData) {
         Map<String, Object> response = new HashMap<>();
 
@@ -58,11 +74,17 @@ public class OrderController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            Order order = new Order();
+            List<CartItem> cartItems = cartItemRepository.findByCartId(DEFAULT_CART_ID);
+            if (cartItems.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Gio hang dang trong");
+                return ResponseEntity.badRequest().body(response);
+            }
 
+            Order order = new Order();
             order.setOrderNumber("DH" + System.currentTimeMillis());
-            order.setCustomerId(1L);
-            order.setStatus("CHO_XAC_NHAN");
+            order.setCustomerId(DEFAULT_CART_ID);
+            order.setStatus("Đang xử lý");
             order.setTotalAmount(new BigDecimal(orderData.get("tongTien").toString()));
             order.setShippingAddress(diaChi);
             order.setCreatedAt(LocalDateTime.now());
@@ -70,7 +92,29 @@ public class OrderController {
 
             Order savedOrder = orderRepository.save(order);
 
-            List<CartItem> cartItems = cartItemRepository.findByCartId(1L);
+            for (CartItem item : cartItems) {
+                Product product = productRepository.findById(item.getProductId()).orElse(null);
+                ProductVariant variant = item.getVariantId() != null
+                        ? productVariantRepository.findById(item.getVariantId()).orElse(null)
+                        : null;
+
+                if (product == null) {
+                    continue;
+                }
+
+                BigDecimal price = variant != null && variant.getPrice() != null
+                        ? variant.getPrice()
+                        : product.getPrice();
+
+                OrderDetail detail = new OrderDetail();
+                detail.setOrderId(savedOrder.getId());
+                detail.setProductId(product.getId());
+                detail.setVariantId(variant != null ? variant.getId() : null);
+                detail.setQuantity(item.getQuantity());
+                detail.setPrice(price);
+                orderDetailRepository.save(detail);
+            }
+
             cartItemRepository.deleteAll(cartItems);
 
             response.put("success", true);

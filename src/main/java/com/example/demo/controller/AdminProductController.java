@@ -40,7 +40,9 @@ import java.util.UUID;
 @RequestMapping("/api/admin/products")
 public class AdminProductController {
 
-    private static final Path PRODUCT_IMAGE_DIR = Paths.get("src", "main", "resources", "static", "images", "Products");
+    private static final Path PRODUCT_IMAGE_DIR = Paths.get("uploads", "images", "Products")
+            .toAbsolutePath()
+            .normalize();
 
     @Autowired
     private ProductRepository productRepository;
