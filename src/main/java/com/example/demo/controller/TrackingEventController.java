@@ -16,13 +16,11 @@ public class TrackingEventController {
     @Autowired
     private TrackingEventRepository trackingEventRepository;
 
-    // Xem toàn bộ lịch sử sự kiện
     @GetMapping
     public List<TrackingEvent> getAllEvents() {
         return trackingEventRepository.findAll();
     }
 
-    // Lưu một sự kiện mới
     @PostMapping
     public TrackingEvent createEvent(@RequestBody TrackingEvent event) {
         return trackingEventRepository.save(event);

@@ -16,13 +16,11 @@ public class RecommendationDetailController {
     @Autowired
     private RecommendationDetailRepository detailRepository;
 
-    // Xem toàn bộ danh sách chi tiết gợi ý
     @GetMapping
     public List<RecommendationDetail> getAllDetails() {
         return detailRepository.findAll();
     }
 
-    // Xem các sản phẩm gợi ý của một mã gợi ý cụ thể (Sắp xếp theo điểm)
     @GetMapping("/{recommendationId}")
     public List<RecommendationDetail> getDetailsByRecId(@PathVariable Long recommendationId) {
         return detailRepository.findByRecommendationIdOrderByScoreDesc(recommendationId);

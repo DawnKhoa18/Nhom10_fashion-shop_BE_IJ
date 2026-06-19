@@ -8,9 +8,8 @@ import java.util.List;
 
 @Repository
 public interface EventRecommendationDetailRepository extends JpaRepository<EventRecommendationDetail, EventRecommendationDetailId> {
-    // Tìm các chi tiết liên quan đến một sự kiện cụ thể
+
     List<EventRecommendationDetail> findByEventId(Long eventId);
 
-    // Tìm các chi tiết liên quan đến một phương pháp gợi ý cụ thể
     List<EventRecommendationDetail> findByRecommendationId(Long recommendationId);
 }

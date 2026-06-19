@@ -2,18 +2,18 @@ package com.example.demo.dto;
 
 import com.example.demo.model.Product;
 import com.example.demo.model.ProductImage;
-import com.fasterxml.jackson.annotation.JsonProperty; // THÊM IMPORT NÀY
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class ProductDetailResponse {
 
-    @JsonProperty("product") // Đảm bảo map đúng key json cho React
+    @JsonProperty("product")
     private Product product;
 
     @JsonProperty("productImages")
     private List<ProductImage> productImages;
 
-    @JsonProperty("isCoSize") // QUAN TRỌNG: Ép Jackson giữ lại chữ "is" đúng logic React đang check
+    @JsonProperty("isCoSize")
     private boolean isCoSize;
 
     @JsonProperty("listMauSac")
@@ -25,11 +25,9 @@ public class ProductDetailResponse {
     @JsonProperty("listSPTuongTu")
     private List<Product> listSPTuongTu;
 
-    // Constructor mặc định (bắt buộc phải có cho Jackson map dữ liệu)
     public ProductDetailResponse() {
     }
 
-    // Constructor đầy đủ để gán nhanh dữ liệu ở tầng ServiceImpl
     public ProductDetailResponse(Product product, List<ProductImage> productImages, boolean isCoSize,
                                  List<String> listMauSac, List<String> listSizeTheoMau, List<Product> listSPTuongTu) {
         this.product = product;
@@ -40,7 +38,6 @@ public class ProductDetailResponse {
         this.listSPTuongTu = listSPTuongTu;
     }
 
-    // Getter và Setter cho các thuộc tính
     public Product getProduct() {
         return product;
     }

@@ -6,10 +6,8 @@ public class CartRequest {
     private String mau;
     private String size;
 
-    // Constructor
     public CartRequest() {}
 
-    // Getters và Setters
     public Long getMaSP() { return maSP; }
     public void setMaSP(Long maSP) { this.maSP = maSP; }
 

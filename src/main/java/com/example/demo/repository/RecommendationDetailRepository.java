@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface RecommendationDetailRepository extends JpaRepository<RecommendationDetail, RecommendationDetailId> {
-    // Lấy danh sách sản phẩm gợi ý của một chiến dịch cụ thể, sắp xếp theo điểm cao nhất
+
     List<RecommendationDetail> findByRecommendationIdOrderByScoreDesc(Long recommendationId);
 }

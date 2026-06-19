@@ -27,14 +27,12 @@ public class OrderDetail {
     @Column(name = "Gia", nullable = false)
     private BigDecimal price;
 
-    // DB tự tính
     @Column(name = "ThanhTien", insertable = false, updatable = false)
     private BigDecimal subTotal;
 
     public OrderDetail() {
     }
 
-    // Getter và Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

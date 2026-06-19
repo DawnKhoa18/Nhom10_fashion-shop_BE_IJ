@@ -42,11 +42,9 @@ public class Customer {
     @Column(name = "SoThich")
     private String hobby;
 
-    // Hàm khởi tạo rỗng
     public Customer() {
     }
 
-    // Getter & Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

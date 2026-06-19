@@ -20,7 +20,6 @@ public class RecommendationDetail {
 
     public RecommendationDetail() {}
 
-    // Getter và Setter
     public Long getRecommendationId() { return recommendationId; }
     public void setRecommendationId(Long recommendationId) { this.recommendationId = recommendationId; }
 
