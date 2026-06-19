@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.text.Normalizer;
 import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "http://localhost:3000")
@@ -114,7 +115,7 @@ public class ProductController {
             }
         }
 
-        String searchText = keyword != null ? keyword.trim().toLowerCase() : "";
+        String searchText = normalizeSearchText(keyword);
         boolean hasSearch = !searchText.isEmpty();
         if (hasSearch) {
             listAllMatched = listAllMatched.stream()
@@ -194,7 +195,14 @@ public class ProductController {
     }
 
     private boolean containsKeyword(String value, String keyword) {
-        return value != null && value.toLowerCase().contains(keyword);
+        return value != null && normalizeSearchText(value).contains(keyword);
+    }
+
+    private String normalizeSearchText(String value) {
+        if (value == null) return "";
+        return Normalizer.normalize(value.trim().toLowerCase(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd');
     }
 
     private int searchScore(Product product, String keyword) {
