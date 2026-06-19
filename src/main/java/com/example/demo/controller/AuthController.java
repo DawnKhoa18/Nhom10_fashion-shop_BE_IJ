@@ -94,6 +94,11 @@ public class AuthController {
         if (customerOpt.isPresent()
                 && customerOpt.get().getPassword().equals(request.getPassword())) {
             Customer customer = customerOpt.get();
+            if (isCustomerLocked(customer)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ quản trị viên.");
+            }
+
             customer.setLastLogin(LocalDateTime.now());
             repository.save(customer);
             return ResponseEntity.ok(customerLoginResponse(customer, "Đăng nhập thành công"));
@@ -154,7 +159,13 @@ public class AuthController {
             return ResponseEntity.ok(employeeLoginResponse(employee, "Đăng nhập Google thành công"));
         }
 
-        Customer customer = repository.findByEmail(email).orElseGet(() -> {
+        Optional<Customer> existingCustomer = repository.findByEmail(email);
+        if (existingCustomer.isPresent() && isCustomerLocked(existingCustomer.get())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ quản trị viên.");
+        }
+
+        Customer customer = existingCustomer.orElseGet(() -> {
             Customer newCustomer = new Customer();
             newCustomer.setFullName(fullName);
             newCustomer.setEmail(email);
@@ -305,6 +316,10 @@ public class AuthController {
 
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase();
+    }
+
+    private boolean isCustomerLocked(Customer customer) {
+        return customer.getStatus() != null && customer.getStatus() == 0;
     }
 
     private record OtpData(String code, LocalDateTime expiresAt) {
