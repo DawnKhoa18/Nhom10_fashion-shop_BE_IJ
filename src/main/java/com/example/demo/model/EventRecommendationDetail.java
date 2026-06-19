@@ -29,7 +29,6 @@ public class EventRecommendationDetail {
 
     public EventRecommendationDetail() {}
 
-    // Getter và Setter
     public Long getEventId() { return eventId; }
     public void setEventId(Long eventId) { this.eventId = eventId; }
 

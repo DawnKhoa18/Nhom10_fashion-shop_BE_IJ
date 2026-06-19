@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
-    // Tìm kiếm gợi ý theo tên phương pháp
+
     Recommendation findByMethod(String method);
 }

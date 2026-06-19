@@ -62,7 +62,6 @@ public class CartItemController {
                 ));
             }
         }
-        
 
         return result;
 

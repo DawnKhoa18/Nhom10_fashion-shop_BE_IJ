@@ -16,13 +16,11 @@ public class OrderDetailController {
     @Autowired
     private OrderDetailRepository orderDetailRepository;
 
-    // Xem hết tất cả chi tiết đơn hàng
     @GetMapping
     public List<OrderDetail> getAllOrderDetails() {
         return orderDetailRepository.findAll();
     }
 
-    // Xem chi tiết của riêng một đơn hàng nào đó
     @GetMapping("/order/{orderId}")
     public List<OrderDetail> getDetailsByOrderId(@PathVariable Long orderId) {
         return orderDetailRepository.findByOrderId(orderId);

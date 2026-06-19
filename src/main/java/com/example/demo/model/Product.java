@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List; // 1. Thêm import để dùng List hình ảnh
+import java.util.List;
 
 @Entity
 @Table(name = "SanPham")
@@ -45,21 +45,17 @@ public class Product {
     @Column(name = "NgayCapNhat")
     private LocalDateTime updatedAt;
 
-    // CẬP NHẬT: Thêm insertable và updatable = false để tránh xung đột với @JoinColumn của category
     @Column(name = "MaDanhMuc")
     private Integer categoryId;
 
-    // CHỈ THÊM: Thiết lập mối quan hệ ManyToOne liên kết sang thực thể Category dựa trên khóa ngoại MaDanhMuc
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "MaDanhMuc", insertable = false, updatable = false)
     private Category category;
 
-    // 2. LIÊN QUAN HOVER: Kết nối với bảng HinhAnhSanPham
     @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "MaSP", insertable = false, updatable = false)
     private List<ProductImage> images;
 
-    // 3. LIÊN QUAN HOVER: Hàm trả về link ảnh hover cho React (ThuTuHinh = 2)
     @JsonProperty("hoverImage")
     public String getHoverImage() {
         if (images != null) {
@@ -74,7 +70,6 @@ public class Product {
 
     public Product() {}
 
-    // --- Getter và Setter ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -108,11 +103,9 @@ public class Product {
     public Integer getCategoryId() { return categoryId; }
     public void setCategoryId(Integer categoryId) { this.categoryId = categoryId; }
 
-    // Getter/Setter cho images để Hibernate hoạt động
     public List<ProductImage> getImages() { return images; }
     public void setImages(List<ProductImage> images) { this.images = images; }
 
-    // CHỈ THÊM: Getter và Setter cho đối tượng Category phục vụ việc render tên danh mục
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
 }

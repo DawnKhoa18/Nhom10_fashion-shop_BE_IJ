@@ -31,11 +31,9 @@ public class ProductVariant {
     @Column(name = "NgayTao")
     private LocalDateTime createdAt;
 
-    // Khởi tạo rỗng
     public ProductVariant() {
     }
 
-    // Getter và Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

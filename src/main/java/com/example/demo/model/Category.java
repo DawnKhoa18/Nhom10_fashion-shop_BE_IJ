@@ -14,7 +14,6 @@ public class Category {
     @Column(name = "TenDanhMuc", nullable = false)
     private String name;
 
-    // Giữ nguyên slug, thêm length để đảm bảo độ dài chuỗi khi map database
     @Column(name = "Slug", unique = true, length = 255)
     private String slug;
 
@@ -24,11 +23,9 @@ public class Category {
     @Column(name = "MaDanhMucCha")
     private Integer parentId;
 
-    // Khởi tạo rỗng
     public Category() {
     }
 
-    // Getter & Setter
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
 

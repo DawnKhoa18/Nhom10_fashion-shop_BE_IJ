@@ -21,7 +21,6 @@ public class ProductVariantController {
         return productVariantRepository.findAll();
     }
 
-    // API lấy biến thể theo mã sản phẩm
     @GetMapping("/product/{productId}")
     public List<ProductVariant> getVariantsByProduct(@PathVariable Long productId) {
         return productVariantRepository.findByProductId(productId);

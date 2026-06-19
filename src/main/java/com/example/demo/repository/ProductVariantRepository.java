@@ -16,11 +16,9 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     Optional<ProductVariant> findFirstByProductId(Long productId);
     void deleteByProductId(Long productId);
 
-    // Lấy danh sách màu sắc duy nhất (Dùng tên biến color và productId)
     @Query("SELECT DISTINCT pv.color FROM ProductVariant pv WHERE pv.productId = :productId")
     List<String> findDistinctColorsByProductId(@Param("productId") Long productId);
 
-    // Lấy danh sách size duy nhất theo màu (Dùng tên biến size, productId và color)
     @Query("SELECT DISTINCT pv.size FROM ProductVariant pv WHERE pv.productId = :productId AND pv.color = :color")
     List<String> findDistinctSizesByProductIdAndColor(@Param("productId") Long productId, @Param("color") String color);
 }

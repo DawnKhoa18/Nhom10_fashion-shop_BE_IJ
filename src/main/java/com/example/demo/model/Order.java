@@ -37,11 +37,9 @@ public class Order {
     @Column(name = "DiaChiGiaoHang", nullable = false, columnDefinition = "TEXT")
     private String shippingAddress;
 
-    // Khởi tạo rỗng
     public Order() {
     }
 
-    // Getter và Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

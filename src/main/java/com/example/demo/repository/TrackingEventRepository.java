@@ -7,9 +7,8 @@ import java.util.List;
 
 @Repository
 public interface TrackingEventRepository extends JpaRepository<TrackingEvent, Long> {
-    // Lấy lịch sử sự kiện của một khách hàng
+
     List<TrackingEvent> findByCustomerId(Long customerId);
 
-    // Lấy sự kiện theo loại
     List<TrackingEvent> findByEventType(String eventType);
 }

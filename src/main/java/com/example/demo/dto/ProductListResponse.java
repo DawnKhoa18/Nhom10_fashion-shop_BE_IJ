@@ -7,9 +7,8 @@ public class ProductListResponse {
     private List<Product> products;
     private String titlePage;
     private String banner;
-    private boolean hienXemThem; // true: hiện nút, false: ẩn nút
+    private boolean hienXemThem;
 
-    // Constructor đầy đủ tham số
     public ProductListResponse(List<Product> products, String titlePage, String banner, boolean hienXemThem) {
         this.products = products;
         this.titlePage = titlePage;
@@ -17,7 +16,6 @@ public class ProductListResponse {
         this.hienXemThem = hienXemThem;
     }
 
-    // --- GETTER VÀ SETTER (Để Spring Boot tự convert sang JSON) ---
     public List<Product> getProducts() { return products; }
     public void setProducts(List<Product> products) { this.products = products; }
 

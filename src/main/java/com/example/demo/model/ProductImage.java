@@ -23,11 +23,9 @@ public class ProductImage {
     @Column(name = "ThuTuHinh")
     private Integer displayOrder;
 
-    // Khởi tạo rỗng
     public ProductImage() {
     }
 
-    // Getter và Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

@@ -40,13 +40,11 @@ public class ProductReviewController {
     @Autowired
     private CustomerRepository customerRepository;
 
-    // Xem toàn bộ đánh giá
     @GetMapping
     public List<ProductReview> getAllReviews() {
         return reviewRepository.findAll();
     }
 
-    // Xem đánh giá đã duyệt của một sản phẩm cụ thể
     @GetMapping("/product/{productId}")
     public List<Map<String, Object>> getApprovedReviewsByProduct(@PathVariable Long productId) {
         return reviewRepository.findByProductIdAndIsApprovedTrue(productId)

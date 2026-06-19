@@ -1,12 +1,12 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.ProductDetailResponse; // THÊM ĐỂ ĐÓNG GÓI CHI TIẾT
+import com.example.demo.dto.ProductDetailResponse;
 import com.example.demo.dto.ProductListResponse;
 import com.example.demo.model.Category;
 import com.example.demo.model.Product;
 import com.example.demo.repository.CategoryRepository;
 import com.example.demo.repository.ProductRepository;
-import com.example.demo.service.ProductService; // THÊM IMPORT SERVICE MỚI
+import com.example.demo.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
-// CHỈ CHỈNH SỬA TẠI ĐÂY: Hỗ trợ cả /api/SanPham và /api/san-pham để khớp chuẩn URL từ React
+
 @RequestMapping({"/api/SanPham", "/api/san-pham"})
 public class ProductController {
 
@@ -75,7 +75,7 @@ public class ProductController {
 
         List<Product> listAllMatched = new ArrayList<>();
         String titlePage = "Sản phẩm";
-        // Banner mặc định cho toàn trang
+
         String banner = "/Images/Banners/banner-tatca.jpg";
 
         if ("tat-ca".equals(slug)) {
@@ -99,11 +99,9 @@ public class ProductController {
             if (dm != null) {
                 titlePage = dm.getName();
 
-                // CHỈNH SỬA LOGIC BANNER TẠI ĐÂY
                 String dbBanner = dm.getBanner();
                 if (dbBanner != null && !dbBanner.isEmpty()) {
-                    // Nếu dữ liệu trong DB đã có đường dẫn /Images/... thì lấy luôn
-                    // Nếu chỉ có tên file (vd: hoodie.jpg) thì tự nối path vào cho khớp thư mục tĩnh
+
                     if (dbBanner.startsWith("/Images/")) {
                         banner = dbBanner;
                     } else {
@@ -116,7 +114,6 @@ public class ProductController {
             }
         }
 
-        // Logic Sắp xếp
         String searchText = keyword != null ? keyword.trim().toLowerCase() : "";
         boolean hasSearch = !searchText.isEmpty();
         if (hasSearch) {
@@ -179,9 +176,6 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    // ================= CHỈ CHỈNH SỬA ĐÚNG ĐOẠN API DƯỚI ĐÂY ĐỂ ĐÓN NHẬN ID TỪ FRONTEND =================
-
-    // API 1: CHỈNH SỬA: Đổi từ /detail/{slug} thành /detail/{id} để nhận productId kiểu số
     @GetMapping("/detail/{id}")
     public ResponseEntity<ProductDetailResponse> getProductDetail(@PathVariable("id") Long id) {
         ProductDetailResponse detail = productService.getProductDetail(id);
@@ -191,7 +185,6 @@ public class ProductController {
         return ResponseEntity.ok(detail);
     }
 
-    // API 2: Lấy danh sách size thay đổi động khi chọn màu bên Frontend (GIỮ NGUYÊN)
     @GetMapping("/{id}/sizes")
     public ResponseEntity<List<String>> getSizesByColor(
             @PathVariable("id") Long productId,
