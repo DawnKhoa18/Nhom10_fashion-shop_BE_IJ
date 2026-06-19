@@ -15,14 +15,18 @@ import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductVariantRepository;
 import com.example.demo.repository.CustomerRepository;
+import com.example.demo.service.MomoPaymentService;
+import com.example.demo.service.VnpayPaymentService;
 
 import jakarta.transaction.Transactional;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -62,6 +66,12 @@ public class OrderController {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    @Autowired
+    private MomoPaymentService momoPaymentService;
+
+    @Autowired
+    private VnpayPaymentService vnpayPaymentService;
 
     @Value("${spring.mail.username:}")
     private String mailUsername;
@@ -165,13 +175,14 @@ public class OrderController {
 
     @PostMapping("/place")
     @Transactional
-    public ResponseEntity<?> placeOrder(@RequestBody Map<String, Object> orderData) {
+    public ResponseEntity<?> placeOrder(@RequestBody Map<String, Object> orderData, HttpServletRequest servletRequest) {
         Map<String, Object> response = new HashMap<>();
 
         try {
             String tenKH = (String) orderData.get("tenKH");
             String phone = (String) orderData.get("phone");
             String diaChi = (String) orderData.get("diaChi");
+            String paymentMethod = String.valueOf(orderData.getOrDefault("hinhThucThanhToan", "COD"));
 
             if (tenKH == null || tenKH.trim().isEmpty()
                     || phone == null || phone.trim().isEmpty()
@@ -231,7 +242,9 @@ public class OrderController {
             Order order = new Order();
             order.setOrderNumber("DH" + System.currentTimeMillis());
             order.setCustomerId(customerId);
-            order.setStatus("Đang xử lý");
+            boolean onlinePayment = "MOMO".equalsIgnoreCase(paymentMethod)
+                    || "VNPAY".equalsIgnoreCase(paymentMethod);
+            order.setStatus(onlinePayment ? "Chờ thanh toán" : "Đang xử lý");
             order.setTotalAmount(totalAmount);
             order.setShippingAddress(diaChi);
             order.setCreatedAt(LocalDateTime.now());
@@ -263,6 +276,27 @@ public class OrderController {
                 orderDetailRepository.save(detail);
             }
 
+            if ("MOMO".equalsIgnoreCase(paymentMethod)) {
+                Map<String, Object> momoResponse = momoPaymentService.createPayment(savedOrder);
+                response.put("success", true);
+                response.put("paymentRequired", true);
+                response.put("paymentMethod", "MOMO");
+                response.put("orderNumber", savedOrder.getOrderNumber());
+                response.put("payUrl", momoResponse.get("payUrl"));
+                response.put("deeplink", momoResponse.get("deeplink"));
+                response.put("qrCodeUrl", momoResponse.get("qrCodeUrl"));
+                return ResponseEntity.ok(response);
+            }
+
+            if ("VNPAY".equalsIgnoreCase(paymentMethod)) {
+                response.put("success", true);
+                response.put("paymentRequired", true);
+                response.put("paymentMethod", "VNPAY");
+                response.put("orderNumber", savedOrder.getOrderNumber());
+                response.put("payUrl", vnpayPaymentService.createPaymentUrl(savedOrder, servletRequest));
+                return ResponseEntity.ok(response);
+            }
+
             cartItemRepository.deleteAll(cartItems);
 
             boolean emailSent = sendOrderConfirmationEmail(savedOrder, customerId, tenKH, phone);
@@ -275,10 +309,131 @@ public class OrderController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             response.put("success", false);
             response.put("message", "Lỗi đặt hàng: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
+    }
+
+    @GetMapping("/momo/confirm/{orderNumber}")
+    @Transactional
+    public ResponseEntity<?> confirmMomoPayment(@PathVariable String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber);
+        if (order == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            Map<String, Object> momoResult = momoPaymentService.queryPayment(orderNumber);
+            boolean paid = momoPaymentService.isSuccessful(momoResult);
+            boolean finalized = paid && finalizePaidOrder(order);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", finalized,
+                    "paid", paid,
+                    "orderNumber", orderNumber,
+                    "resultCode", momoResult.getOrDefault("resultCode", -1),
+                    "message", String.valueOf(momoResult.getOrDefault("message", paid ? "Thanh toán thành công" : "Thanh toán chưa thành công"))
+            ));
+        } catch (Exception ex) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "paid", false,
+                    "message", ex.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/momo/ipn")
+    @Transactional
+    public ResponseEntity<?> receiveMomoIpn(@RequestBody Map<String, Object> payload) {
+        String orderNumber = String.valueOf(payload.getOrDefault("orderId", ""));
+        Order order = orderRepository.findByOrderNumber(orderNumber);
+        if (order == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Không tìm thấy đơn hàng"));
+        }
+
+        try {
+            Map<String, Object> verifiedResult = momoPaymentService.queryPayment(orderNumber);
+            if (momoPaymentService.isSuccessful(verifiedResult)) {
+                finalizePaidOrder(order);
+            }
+            return ResponseEntity.noContent().build();
+        } catch (Exception ex) {
+            return ResponseEntity.internalServerError().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/vnpay/return")
+    @Transactional
+    public ResponseEntity<?> confirmVnpayPayment(@RequestParam Map<String, String> params) {
+        String orderNumber = params.get("vnp_TxnRef");
+        Order order = orderNumber == null ? null : orderRepository.findByOrderNumber(orderNumber);
+        if (order == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Không tìm thấy đơn hàng VNPay"
+            ));
+        }
+
+        boolean validSignature = vnpayPaymentService.validateSignature(params);
+        boolean amountMatches = vnpayPaymentService.amountMatches(order, params);
+        boolean paid = validSignature && amountMatches && vnpayPaymentService.isSuccessful(params);
+        boolean finalized = paid && finalizePaidOrder(order);
+
+        return ResponseEntity.ok(Map.of(
+                "success", finalized,
+                "paid", paid,
+                "orderNumber", orderNumber,
+                "responseCode", params.getOrDefault("vnp_ResponseCode", ""),
+                "message", finalized ? "Thanh toán VNPay thành công" : "Giao dịch VNPay chưa thành công hoặc chữ ký không hợp lệ"
+        ));
+    }
+
+    @GetMapping("/vnpay/ipn")
+    @Transactional
+    public ResponseEntity<?> receiveVnpayIpn(@RequestParam Map<String, String> params) {
+        String orderNumber = params.get("vnp_TxnRef");
+        Order order = orderNumber == null ? null : orderRepository.findByOrderNumber(orderNumber);
+        if (order == null) {
+            return ResponseEntity.ok(Map.of("RspCode", "01", "Message", "Order not found"));
+        }
+        if (!vnpayPaymentService.validateSignature(params)) {
+            return ResponseEntity.ok(Map.of("RspCode", "97", "Message", "Invalid signature"));
+        }
+        if (!vnpayPaymentService.amountMatches(order, params)) {
+            return ResponseEntity.ok(Map.of("RspCode", "04", "Message", "Invalid amount"));
+        }
+        if (vnpayPaymentService.isSuccessful(params)) {
+            finalizePaidOrder(order);
+        }
+        return ResponseEntity.ok(Map.of("RspCode", "00", "Message", "Confirm success"));
+    }
+
+    private boolean finalizePaidOrder(Order order) {
+        if (!"Chờ thanh toán".equalsIgnoreCase(order.getStatus())) {
+            return "Đang xử lý".equalsIgnoreCase(order.getStatus())
+                    || "Đã xác nhận".equalsIgnoreCase(order.getStatus())
+                    || "Đang giao".equalsIgnoreCase(order.getStatus())
+                    || "Đã giao".equalsIgnoreCase(order.getStatus());
+        }
+
+        order.setStatus("Đang xử lý");
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        Cart cart = cartRepository.findByCustomerId(order.getCustomerId()).orElse(null);
+        if (cart != null) {
+            List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
+            if (!items.isEmpty()) cartItemRepository.deleteAll(items);
+        }
+
+        Customer customer = customerRepository.findById(order.getCustomerId()).orElse(null);
+        if (customer != null) {
+            sendOrderConfirmationEmail(order, customer.getId(), customer.getFullName(), customer.getPhone());
+        }
+        return true;
     }
 
     private boolean sendOrderConfirmationEmail(Order order, Long customerId, String customerName, String phone) {
