@@ -15,6 +15,7 @@ import com.example.demo.repository.OrderDetailRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductVariantRepository;
 import com.example.demo.repository.CustomerRepository;
+import com.example.demo.repository.ProductReviewRepository;
 import com.example.demo.service.MomoPaymentService;
 import com.example.demo.service.VnpayPaymentService;
 
@@ -65,6 +66,9 @@ public class OrderController {
     private CustomerRepository customerRepository;
 
     @Autowired
+    private ProductReviewRepository productReviewRepository;
+
+    @Autowired
     private JavaMailSender mailSender;
 
     @Autowired
@@ -109,6 +113,7 @@ public class OrderController {
 
         Map<String, Object> result = toOrderSummary(order);
         List<Map<String, Object>> items = new ArrayList<>();
+        boolean reviewableOrder = isReviewableStatus(order.getStatus());
 
         for (OrderDetail detail : orderDetailRepository.findByOrderId(orderId)) {
             Product product = productRepository.findById(detail.getProductId()).orElse(null);
@@ -126,11 +131,24 @@ public class OrderController {
             item.put("quantity", detail.getQuantity());
             item.put("price", detail.getPrice());
             item.put("subTotal", detail.getPrice().multiply(BigDecimal.valueOf(detail.getQuantity())));
+            boolean reviewed = productReviewRepository.existsByProductIdAndCustomerId(
+                    detail.getProductId(),
+                    customerId
+            );
+            item.put("reviewed", reviewed);
+            item.put("canReview", reviewableOrder && !reviewed);
             items.add(item);
         }
 
         result.put("items", items);
         return ResponseEntity.ok(result);
+    }
+
+    private boolean isReviewableStatus(String status) {
+        if (status == null) return false;
+        String normalized = status.trim();
+        return "Đã giao".equalsIgnoreCase(normalized)
+                || "Đã xử lý".equalsIgnoreCase(normalized);
     }
 
     @PutMapping("/customer/{customerId}/{orderId}/cancel")

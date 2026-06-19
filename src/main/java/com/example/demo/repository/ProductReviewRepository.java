@@ -12,4 +12,6 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, Lo
 
     // Chỉ lấy những đánh giá đã được duyệt để hiện lên Web
     List<ProductReview> findByProductIdAndIsApprovedTrue(Long productId);
+
+    boolean existsByProductIdAndCustomerId(Long productId, Long customerId);
 }
